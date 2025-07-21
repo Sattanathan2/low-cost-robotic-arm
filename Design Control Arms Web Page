@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tony Robotic Arm Controller</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: Arial; text-align: center; background: #f0f0f0; margin: 0; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1 { color: #333; margin-bottom: 30px; }
+        .mode-buttons { margin-bottom: 30px; }
+        .mode-btn { padding: 15px 30px; margin: 10px; font-size: 18px; border: none; border-radius: 5px; cursor: pointer; }
+        .manual-btn { background: #4CAF50; color: white; }
+        .auto-btn { background: #2196F3; color: white; }
+        .servo-control { margin: 20px 0; padding: 15px; background: #f9f9f9; border-radius: 5px; }
+        .servo-label { font-weight: bold; margin-bottom: 10px; }
+        .slider { width: 80%; height: 25px; margin: 10px 0; }
+        .value-display { font-size: 18px; font-weight: bold; color: #333; margin: 5px 0; }
+        .control-buttons { margin: 20px 0; }
+        .control-btn { padding: 12px 25px; margin: 10px; font-size: 16px; border: none; border-radius: 5px; cursor: pointer; }
+        .record-btn { background: #FF5722; color: white; }
+        .play-btn { background: #4CAF50; color: white; }
+        .stop-btn { background: #f44336; color: white; }
+        .auto-start-btn { background: #9C27B0; color: white; }
+        .hidden { display: none; }
+        .status { margin: 20px 0; padding: 15px; background: #e3f2fd; border-radius: 5px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🦾 Tony Robotic Arm Controller</h1>
+        
+        <div class="mode-buttons">
+            <button class="mode-btn manual-btn" onclick="setMode('manual')">📱 Manual Control</button>
+            <button class="mode-btn auto-btn" onclick="setMode('auto')">🤖 Auto Mode</button>
+        </div>
+
+        <div id="status" class="status">Ready to operate</div>
+
+        <!-- Manual Control Section -->
+        <div id="manualSection">
+            <div class="servo-control">
+                <div class="servo-label">🔄 Base Servo (0-180°)</div>
+                <input type="range" min="0" max="180" value="0" class="slider" id="baseSlider" oninput="updateServo('base', this.value)">
+                <div class="value-display">Position: <span id="baseValue">0</span>°</div>
+            </div>
+
+            <div class="servo-control">
+                <div class="servo-label">💪 Right Arm (40-100°)</div>
+                <input type="range" min="40" max="100" value="90" class="slider" id="rightArmSlider" oninput="updateServo('rightArm', this.value)">
+                <div class="value-display">Position: <span id="rightArmValue">90</span>°</div>
+            </div>
+
+            <div class="servo-control">
+                <div class="servo-label">🤲 Left Arm (0-40°)</div>
+                <input type="range" min="0" max="40" value="0" class="slider" id="leftArmSlider" oninput="updateServo('leftArm', this.value)">
+                <div class="value-display">Position: <span id="leftArmValue">0</span>°</div>
+            </div>
+
+            <div class="servo-control">
+                <div class="servo-label">✋ Gripper (0-28°)</div>
+                <input type="range" min="0" max="28" value="0" class="slider" id="gripperSlider" oninput="updateServo('gripper', this.value)">
+                <div class="value-display">Position: <span id="gripperValue">0</span>°</div>
+            </div>
+
+            <div class="control-buttons">
+                <button class="control-btn record-btn" id="recordBtn" onclick="toggleRecord()">🔴 Start Recording</button>
+                <button class="control-btn play-btn" onclick="playRecording()">▶️ Play Recording</button>
+                <button class="control-btn stop-btn" onclick="stopAll()">⏹️ Stop & Reset</button>
+            </div>
+        </div>
+
+        <!-- Auto Mode Section -->
+        <div id="autoSection" class="hidden">
+            <h3>🤖 Automatic Operation</h3>
+            <p>Pre-programmed 16-step pick and place sequence</p>
+            <div class="control-buttons">
+                <button class="control-btn auto-start-btn" onclick="startAuto()">🚀 Start Auto Sequence</button>
+                <button class="control-btn stop-btn" onclick="stopAll()">⏹️ Stop Auto</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isRecording = false;
+        let currentMode = 'manual';
+
+        function setMode(mode) {
+            currentMode = mode;
+            if (mode === 'manual') {
+                document.getElementById('manualSection').classList.remove('hidden');
+                document.getElementById('autoSection').classList.add('hidden');
+            } else {
+                document.getElementById('manualSection').classList.add('hidden');
+                document.getElementById('autoSection').classList.remove('hidden');
+            }
+            updateStatus('Mode switched to ' + mode);
+        }
+
+        function updateServo(servo, value) {
+            document.getElementById(servo + 'Value').innerText = value;
+            fetch('/move?servo=' + servo + '&value=' + value)
+                .then(response => response.text())
+                .then(data => console.log(data));
+        }
+
+        function toggleRecord() {
+            const btn = document.getElementById('recordBtn');
+            if (!isRecording) {
+                isRecording = true;
+                btn.innerText = '⏺️ Stop Recording';
+                btn.style.background = '#FF9800';
+                fetch('/record?action=start');
+                updateStatus('Recording started - adjust servos to record positions');
+            } else {
+                isRecording = false;
+                btn.innerText = '🔴 Start Recording';
+                btn.style.background = '#FF5722';
+                fetch('/record?action=stop');
+                updateStatus('Recording stopped');
+            }
+        }
+
+        function playRecording() {
+            fetch('/play')
+                .then(response => response.text())
+                .then(data => {
+                    updateStatus('Playing recorded sequence...');
+                });
+        }
+
+        function startAuto() {
+            fetch('/auto')
+                .then(response => response.text())
+                .then(data => {
+                    updateStatus('Running automatic pick & place sequence...');
+                });
+        }
+
+        function stopAll() {
+            fetch('/stop');
+            updateStatus('Stopping all operations - returning to default position');
+            // Reset sliders to default
+            document.getElementById('baseSlider').value = 0;
+            document.getElementById('rightArmSlider').value = 90;
+            document.getElementById('leftArmSlider').value = 0;
+            document.getElementById('gripperSlider').value = 0;
+            document.getElementById('baseValue').innerText = 0;
+            document.getElementById('rightArmValue').innerText = 90;
+            document.getElementById('leftArmValue').innerText = 0;
+            document.getElementById('gripperValue').innerText = 0;
+        }
+
+        function updateStatus(message) {
+            document.getElementById('status').innerText = message;
+        }
+
+        // Update servo positions every 2 seconds
+        setInterval(() => {
+            fetch('/status')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('baseSlider').value = data.base;
+                    document.getElementById('rightArmSlider').value = data.rightArm;
+                    document.getElementById('leftArmSlider').value = data.leftArm;
+                    document.getElementById('gripperSlider').value = data.gripper;
+                    document.getElementById('baseValue').innerText = data.base;
+                    document.getElementById('rightArmValue').innerText = data.rightArm;
+                    document.getElementById('leftArmValue').innerText = data.leftArm;
+                    document.getElementById('gripperValue').innerText = data.gripper;
+                });
+        }, 2000);
+    </script>
+</body>
+</html> 
